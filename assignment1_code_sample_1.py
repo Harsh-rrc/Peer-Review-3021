@@ -1,36 +1,67 @@
 import os
-import pymysql
-from urllib.request import urlopen
+import sqlite3
+import requests
 
-db_config = {
-    'host': 'mydatabase.com',
-    'user': 'admin',
-    'password': 'secret123'
-}
 
-def get_user_input():
-    user_input = input('Enter your name: ')
-    return user_input
+# 1. OWASP Cryptographic Failures
+# Hardcoded credentials (should be in environment variables or a secrets manager)
 
-def send_email(to, subject, body):
-    os.system(f'echo {body} | mail -s "{subject}" {to}')
+DB_USERNAME = "admin"
+DB_PASSWORD = "password123"
+DB_NAME = "users.db"
 
-def get_data():
-    url = 'http://insecure-api.com/get-data'
-    data = urlopen(url).read().decode()
-    return data
+# Connect to database (not secure way)
+conn = sqlite3.connect(DB_NAME)
+cursor = conn.cursor()
 
-def save_to_db(data):
-    query = f"INSERT INTO mytable (column1, column2) VALUES ('{data}', 'Another Value')"
-    connection = pymysql.connect(**db_config)
-    cursor = connection.cursor()
+
+# 2. OWASP Injection (SQL Injection)
+# Unsafe string formatting used in SQL query
+
+def get_user(username):
+    # Vulnerable: directly inserting user input into the query
+    query = f"SELECT * FROM users WHERE username = '{username}'"
+    cursor.execute(query)  # attacker can inject malicious SQL
+    return cursor.fetchall()
+
+
+# 3. OWASP Injection (Command Injection)
+# Using os.system() with user input
+
+def send_email(recipient_email):
+    # Vulnerable: user input directly passed to a system command
+    os.system(f"echo 'Hello {recipient_email}' | mail -s 'Test' {recipient_email}")
+    # attacker could inject something like: test@example.com; rm -rf /
+
+
+# 4. OWASP Cryptographic Failures
+# Fetching data using insecure HTTP connection
+
+def fetch_data_from_api():
+    # Vulnerable: using plain HTTP (data can be intercepted)
+    response = requests.get("http://example.com/api/data")
+    return response.text
+
+
+# 5. OWASP Security Misconfiguration
+# No input validation for user-provided data
+
+def register_user(username, age):
+    # Vulnerable: no checks for username length, content, or age validity
+    query = f"INSERT INTO users (username, age) VALUES ('{username}', {age})"
     cursor.execute(query)
-    connection.commit()
-    cursor.close()
-    connection.close()
+    conn.commit()
+    print("User registered successfully!")
 
-if __name__ == '__main__':
-    user_input = get_user_input()
-    data = get_data()
-    save_to_db(data)
-    send_email('admin@example.com', 'User Input', user_input)
+# Simulate user inputs (for demo)
+
+if __name__ == "__main__":
+    # Example user input (imagine these come from a web form)
+    username = input("Enter your username: ")
+    age = input("Enter your age: ")
+    email = input("Enter your email: ")
+
+    get_user(username)
+    send_email(email)
+    fetch_data_from_api()
+    register_user(username, age)
